@@ -26,6 +26,8 @@ Both hand the game the same missing script from your own PC. Neither changes gam
 
 Built by Achreen / moonbah with Claude, **on top of Nitrogen's investigation**: Nitrogen found the cause and made
 the first working fix (Option 2 below). This version only changes *how* the script reaches the game.
+Thanks to **Strelzia** for the idea of making it work for multiboxers (many clients, no restarts), which is what
+led to this version.
 
 The game's browser (Awesomium 1.6) accepts the old Chromium option `--host-resolver-rules` on the game's command
 line. `AoC Rewards Fix.exe` runs a tiny web server on your PC only (`127.0.0.1:8777`) and starts the game with
