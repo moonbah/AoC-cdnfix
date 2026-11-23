@@ -20,6 +20,9 @@
 // The game folder needs an empty file named IgnorePatcher.enable, otherwise the game opens the patcher a second
 // after it starts and the option is lost. If the file is missing, this program says so and offers to create it.
 //
+// DX10: add the option dx10, or copy this exe and rename it so its name ends in _DX10 (for example
+// "AoC Rewards Fix_DX10.exe"): that copy starts the DX10 client by default.
+//
 // Usage:  "AoC Rewards Fix.exe" [dx10] [nogame] ["path"]
 // path = the Age of Conan folder, or a folder that holds several installs. It is found in this order: the path
 // given (Steam's %command% gives the patcher's path, its folder is used), game_path.txt next to this exe, this
@@ -58,7 +61,10 @@ static class AoCRewardsFix
         Console.Title = "AoC Rewards Fix";
         string here = AppDomain.CurrentDomain.BaseDirectory;
         CacheDir = Path.Combine(here, "cache");
-        bool dx10 = false, noGame = false;
+        // an exe whose name ends in _DX10 (copy and rename it) starts the DX10 client by default (idea by Strelzia)
+        string self = Path.GetFileNameWithoutExtension(Process.GetCurrentProcess().MainModule.FileName);
+        bool dx10 = self.EndsWith("_DX10", StringComparison.OrdinalIgnoreCase);
+        bool noGame = false;
         string given = null;
         foreach (string a in args)
         {

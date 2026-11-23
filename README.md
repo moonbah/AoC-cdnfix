@@ -45,7 +45,9 @@ It covers every page that loads from cdnjs (Daily Rewards and the Item Shop).
 4. Keep the black window open (minimised is fine). It closes by itself after the last client is closed.
 5. **More clients:** double-click the exe again for each one. The first window serves all of them.
 
-For the DX10 client, start it with `dx10` added (for example a shortcut with ` dx10` at the end of its Target).
+For the DX10 client, either start the exe with `dx10` added (for example a shortcut with ` dx10` at the end of its
+Target), or copy the exe and rename the copy so its name ends in `_DX10` (for example `AoC Rewards Fix_DX10.exe`):
+that copy starts the DX10 client by default. (The rename idea is by Strelzia.)
 
 **Steam:** to start through Steam's Play button, open the game's Properties → General → Launch Options and enter the
 full path of the exe in quotes, followed by `%command%`, for example
@@ -73,7 +75,7 @@ is treated as one install, as before.
 - Source: [`rewards-fix/AoCRewardsFix.cs`](rewards-fix/AoCRewardsFix.cs), one file. The exe is built from it with
   the C# compiler that ships with Windows (the command is at the top of the file). It needs .NET Framework 4,
   which Windows 10 and 11 already have.
-- SHA-256 of the released exe: `756D8218B68C3FBF8EBCE8D1E63ACCEAF3A7E8C2A3A9F7689416D23693358CE7`
+- SHA-256 of the released exe: `253AC21CE356AD329735E71C717B5D3FED5C9A69A588ECC70E879B15A7E44452`
 
 ## Option 2: AoC cdnfix by Nitrogen (the original fix)
 
