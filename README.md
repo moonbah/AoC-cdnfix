@@ -47,16 +47,27 @@ It covers every page that loads from cdnjs (Daily Rewards and the Item Shop).
 
 For the DX10 client, start it with `dx10` added (for example a shortcut with ` dx10` at the end of its Target).
 
+**Steam:** to start through Steam's Play button, open the game's Properties → General → Launch Options and enter the
+full path of the exe in quotes, followed by `%command%`, for example
+`"G:\SteamLibrary\steamapps\common\Age of Conan\AoC Rewards Fix.exe" %command%`. Steam then passes the patcher's
+path to the tool, which finds the game folder from it. (Works for moonbah on one PC; the black window opens when you
+press Play.)
+
 ### Please read
 
 - The game is started **without the patcher**. When the game has an update, run the normal patcher once.
+- **`IgnorePatcher.enable`:** the game only stays open when an empty file named `IgnorePatcher.enable` is in the
+  game folder. Without it the game opens the patcher about a second after it starts, and the fix is lost (the
+  symptom: the patcher window appears right after the black window says it started the game). The exe checks for
+  the file and, if it is missing, asks "Create it now? (Y/N)". Answer **Y**. It is the game's own switch for
+  skipping the patcher; delete the file any time to undo it. You can also create the empty file yourself.
 - Only clients started through the exe get the fix. A client started from Steam or the patcher does not.
 - Tested on one PC (Windows 11, `AgeOfConan.exe`): the reward was claimed. Several clients at once and DX10 are
   not confirmed yet. It is unofficial; use it at your own risk.
 - Source: [`rewards-fix/AoCRewardsFix.cs`](rewards-fix/AoCRewardsFix.cs), one file. The exe is built from it with
   the C# compiler that ships with Windows (the command is at the top of the file). It needs .NET Framework 4,
   which Windows 10 and 11 already have.
-- SHA-256 of the released exe: `6497FCA96200ACAF27F5998E5618F8400E70DA9E63E1E816ABF6DE567D1D2DEA`
+- SHA-256 of the released exe: `6B956A566895599ED5D41AE27BCBF5D752D8AE725C44AC3799264F90B362078A`
 
 ## Option 2: AoC cdnfix by Nitrogen (the original fix)
 

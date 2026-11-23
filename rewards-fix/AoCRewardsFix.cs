@@ -15,6 +15,9 @@
 // Run it again to start another client (multiboxing): the second copy sees the server is already running,
 // starts one more client and closes. The first window keeps serving until the last client is closed.
 //
+// The game folder needs an empty file named IgnorePatcher.enable, otherwise the game opens the patcher a second
+// after it starts and the option is lost. If the file is missing, this program says so and offers to create it.
+//
 // Usage:  "AoC Rewards Fix.exe" [dx10] [nogame] ["path to the Age of Conan folder"]
 // The game folder is found in this order: the path given, game_path.txt next to this exe, this exe's own folder.
 //
@@ -57,7 +60,9 @@ static class AoCRewardsFix
             string l = a.ToLowerInvariant().TrimStart('-', '/');
             if (l == "dx10") dx10 = true;
             else if (l == "nogame") noGame = true;
-            else gameDir = a;
+            else if (Directory.Exists(a)) gameDir = a;
+            else if (File.Exists(a)) { if (gameDir == null) gameDir = Path.GetDirectoryName(a); }   // Steam's %command% passes the patcher's path: use its folder
+            // anything else (other options Steam may add) is ignored
         }
         string exeName = dx10 ? "AgeOfConanDX10.exe" : "AgeOfConan.exe";
         if (!noGame)
@@ -77,6 +82,7 @@ static class AoCRewardsFix
                 Console.ReadLine();
                 return 1;
             }
+            CheckIgnorePatcher(gameDir);
         }
 
         // modern TLS for our own downloads (3072 = TLS 1.2; newer .NET versions add 1.3 by themselves)
@@ -109,15 +115,52 @@ static class AoCRewardsFix
 
         // stay until every client is closed (or forever with "nogame")
         bool seen = false;
+        bool hinted = false;
         int gone = 0;
+        int ticks = 0;
         while (true)
         {
             Thread.Sleep(5000);
             if (noGame) continue;
+            ticks++;
             int n = Process.GetProcessesByName("AgeOfConan").Length + Process.GetProcessesByName("AgeOfConanDX10").Length;
+            if (!hinted && ticks <= 6 && n == 0 && Process.GetProcessesByName("ConanPatcher").Length > 0)
+            {
+                hinted = true;
+                Say("The game handed over to the patcher instead of starting. The fix only works for a game started by this program.");
+                Say("Usual reason: the game folder has no IgnorePatcher.enable file. Close the patcher, run this program again and answer Y when asked.");
+            }
             if (n > 0) { seen = true; gone = 0; }
             else if (seen && ++gone >= 6) { Say("All clients closed. Bye."); Thread.Sleep(1500); return 0; }
             else if (!seen && ++gone >= 24) { Say("The game never started. Closing."); Thread.Sleep(1500); return 1; }
+        }
+    }
+
+    // The game skips the patcher only when an empty file IgnorePatcher.enable sits in its folder. Without it the
+    // game hands over to the patcher about a second after it starts, and the option below is lost. Creating the
+    // empty file is the game's own switch, but it is a change in the game folder, so ask first.
+    static void CheckIgnorePatcher(string gameDir)
+    {
+        string f = Path.Combine(gameDir, "IgnorePatcher.enable");
+        if (File.Exists(f)) return;
+        Say("The game folder has no file named IgnorePatcher.enable.");
+        Say("Without it the game opens the patcher a second after it starts, and this fix is lost.");
+        Say("The file is empty and is the game's own switch for skipping the patcher. You can delete it any time.");
+        Console.Write("Create it now? (Y/N): ");
+        string a = Console.ReadLine();
+        if (a == null || !a.Trim().ToLowerInvariant().StartsWith("y"))
+        {
+            Say("Not created. Starting the game anyway; if the patcher opens, create an empty file called IgnorePatcher.enable in " + gameDir);
+            return;
+        }
+        try
+        {
+            File.WriteAllBytes(f, new byte[0]);
+            Say("Created " + f);
+        }
+        catch (Exception e)
+        {
+            Say("Could not create it (" + e.Message + "). Create an empty file called IgnorePatcher.enable in " + gameDir + " yourself.");
         }
     }
 
@@ -130,8 +173,15 @@ static class AoCRewardsFix
         // first argument is what the game's own patcher passes; the rest are options of the built-in browser
         si.Arguments = "\"" + Path.Combine(gameDir, "ConanPatcher.exe") + "\" --host-resolver-rules=" + rule + " --host-rules=" + rule;
         si.UseShellExecute = false;
-        Process.Start(si);
-        Say("Started " + exeName + " (without the patcher: run the normal patcher when the game has an update).");
+        try
+        {
+            Process.Start(si);
+            Say("Started " + exeName + " (without the patcher: run the normal patcher when the game has an update).");
+        }
+        catch (Exception e)
+        {
+            Say("Could not start " + exeName + ": " + e.Message);
+        }
     }
 
     static void AcceptLoop(TcpListener listener)
