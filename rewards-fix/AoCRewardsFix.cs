@@ -12,14 +12,19 @@
 //        --host-resolver-rules="MAP cdnjs.cloudflare.com 127.0.0.1:8777"
 //      so the browser asks this server instead of cdnjs.
 //
-// Run it again to start another client (multiboxing): the second copy sees the server is already running,
-// starts one more client and closes. The first window keeps serving until the last client is closed.
+// Several clients: run it again for another client (the second copy sees the server is already running, starts
+// one more client and closes), or point it at a folder that holds several installs (AOC1, AOC2, ...): it lists
+// them and starts the ones you pick. The first window keeps serving until the last client is closed.
+// The multi-install picker is based on a modification by Strelzia, who also had the multibox idea.
 //
 // The game folder needs an empty file named IgnorePatcher.enable, otherwise the game opens the patcher a second
 // after it starts and the option is lost. If the file is missing, this program says so and offers to create it.
 //
-// Usage:  "AoC Rewards Fix.exe" [dx10] [nogame] ["path to the Age of Conan folder"]
-// The game folder is found in this order: the path given, game_path.txt next to this exe, this exe's own folder.
+// Usage:  "AoC Rewards Fix.exe" [dx10] [nogame] ["path"]
+// path = the Age of Conan folder, or a folder that holds several installs. It is found in this order: the path
+// given (Steam's %command% gives the patcher's path, its folder is used), game_path.txt next to this exe, this
+// exe's own folder. A folder that has AgeOfConan.exe is one install; otherwise every folder directly inside it
+// that has AgeOfConan.exe (or AgeOfConanDX10.exe) is offered as an install.
 //
 // Build (no extra tools needed, the compiler ships with Windows):
 //   C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe /nologo /out:"AoC Rewards Fix.exe" AoCRewardsFix.cs
@@ -54,35 +59,41 @@ static class AoCRewardsFix
         string here = AppDomain.CurrentDomain.BaseDirectory;
         CacheDir = Path.Combine(here, "cache");
         bool dx10 = false, noGame = false;
-        string gameDir = null;
+        string given = null;
         foreach (string a in args)
         {
             string l = a.ToLowerInvariant().TrimStart('-', '/');
             if (l == "dx10") dx10 = true;
             else if (l == "nogame") noGame = true;
-            else if (Directory.Exists(a)) gameDir = a;
-            else if (File.Exists(a)) { if (gameDir == null) gameDir = Path.GetDirectoryName(a); }   // Steam's %command% passes the patcher's path: use its folder
+            else if (Directory.Exists(a)) given = a;
+            else if (File.Exists(a)) { if (given == null) given = Path.GetDirectoryName(a); }   // Steam's %command% passes the patcher's path: use its folder
             // anything else (other options Steam may add) is ignored
         }
-        string exeName = dx10 ? "AgeOfConanDX10.exe" : "AgeOfConan.exe";
+
+        List<string> games = new List<string>();
         if (!noGame)
         {
-            if (gameDir == null)
+            string root = given;
+            if (root == null)
             {
                 string note = Path.Combine(here, "game_path.txt");
-                if (File.Exists(note)) gameDir = File.ReadAllText(note).Trim().Trim('"');
+                if (File.Exists(note)) root = File.ReadAllText(note).Trim().Trim('"');
             }
-            if (gameDir == null) gameDir = here;
-            gameDir = gameDir.TrimEnd('\\', '/');
-            if (!File.Exists(Path.Combine(gameDir, exeName)))
+            if (root == null) root = here;
+            if (root.Length > 3) root = root.TrimEnd('\\', '/');
+            games = FindGames(root, dx10);
+            if (games.Count == 0)
             {
-                Say("Can't find " + exeName + " in: " + gameDir);
+                Say("Can't find the game in: " + root + " (or in any folder directly inside it).");
                 Say("Put this program in the Age of Conan folder, or write the folder's path into game_path.txt next to it.");
+                Say("For several installs, write the folder that holds all of them into game_path.txt.");
                 Say("Press Enter to close.");
                 Console.ReadLine();
                 return 1;
             }
-            CheckIgnorePatcher(gameDir);
+            games = ChooseGames(games);
+            if (games == null) return 1;
+            CheckIgnorePatcher(games);
         }
 
         // modern TLS for our own downloads (3072 = TLS 1.2; newer .NET versions add 1.3 by themselves)
@@ -99,19 +110,24 @@ static class AoCRewardsFix
             listener = null;        // port taken: another copy of this program is already serving
         }
 
-        if (!noGame) StartGame(gameDir, exeName);
+        // the server must be answering before the first client starts
+        if (listener != null)
+        {
+            TcpListener lst = listener;
+            Thread t = new Thread(delegate() { AcceptLoop(lst); });
+            t.IsBackground = true;
+            t.Start();
+            Say("Serving " + CdnHost + " to the game on 127.0.0.1:" + Port + ". Keep this window open while you play.");
+        }
+
+        if (!noGame) StartGames(games, dx10);
 
         if (listener == null)
         {
-            Say("The fix is already running in another window. Started one more client; this window closes.");
+            Say("The fix is already running in another window. Started the client(s); this window closes.");
             Thread.Sleep(2500);
             return 0;
         }
-
-        Say("Serving " + CdnHost + " to the game on 127.0.0.1:" + Port + ". Keep this window open while you play.");
-        Thread t = new Thread(delegate() { AcceptLoop(listener); });
-        t.IsBackground = true;
-        t.Start();
 
         // stay until every client is closed (or forever with "nogame")
         bool seen = false;
@@ -136,36 +152,148 @@ static class AoCRewardsFix
         }
     }
 
-    // The game skips the patcher only when an empty file IgnorePatcher.enable sits in its folder. Without it the
-    // game hands over to the patcher about a second after it starts, and the option below is lost. Creating the
-    // empty file is the game's own switch, but it is a change in the game folder, so ask first.
-    static void CheckIgnorePatcher(string gameDir)
+    // The exe to start in an install: the preferred one (DX9 or DX10), else the other one, else null.
+    static string PickExe(string dir, bool dx10)
     {
-        string f = Path.Combine(gameDir, "IgnorePatcher.enable");
-        if (File.Exists(f)) return;
-        Say("The game folder has no file named IgnorePatcher.enable.");
-        Say("Without it the game opens the patcher a second after it starts, and this fix is lost.");
-        Say("The file is empty and is the game's own switch for skipping the patcher. You can delete it any time.");
-        Console.Write("Create it now? (Y/N): ");
-        string a = Console.ReadLine();
-        if (a == null || !a.Trim().ToLowerInvariant().StartsWith("y"))
+        string a = dx10 ? "AgeOfConanDX10.exe" : "AgeOfConan.exe";
+        string b = dx10 ? "AgeOfConan.exe" : "AgeOfConanDX10.exe";
+        if (File.Exists(Path.Combine(dir, a))) return a;
+        if (File.Exists(Path.Combine(dir, b))) return b;
+        return null;
+    }
+
+    // One install (the folder itself has the game), or every folder directly inside it that has the game,
+    // sorted by the number at the end of the folder name (AOC2 before AOC10).
+    static List<string> FindGames(string root, bool dx10)
+    {
+        List<string> found = new List<string>();
+        if (!Directory.Exists(root)) return found;
+        if (PickExe(root, dx10) != null) { found.Add(root); return found; }
+        string[] subs;
+        try { subs = Directory.GetDirectories(root); }
+        catch (Exception) { return found; }
+        foreach (string d in subs)
+            if (PickExe(d, dx10) != null) found.Add(d);
+        found.Sort(delegate(string a, string b)
         {
-            Say("Not created. Starting the game anyway; if the patcher opens, create an empty file called IgnorePatcher.enable in " + gameDir);
-            return;
-        }
-        try
+            string na = Path.GetFileName(a);
+            string nb = Path.GetFileName(b);
+            int ia, ib;
+            bool aNum = int.TryParse(Regex.Match(na, @"\d+$").Value, out ia);
+            bool bNum = int.TryParse(Regex.Match(nb, @"\d+$").Value, out ib);
+            if (aNum && bNum)
+            {
+                int c = ia.CompareTo(ib);
+                if (c != 0) return c;
+            }
+            return StringComparer.OrdinalIgnoreCase.Compare(na, nb);
+        });
+        return found;
+    }
+
+    // One install: no question. Several: a numbered list; "1,3,5", ranges like "1-5", or ALL. null = no answer.
+    static List<string> ChooseGames(List<string> games)
+    {
+        if (games.Count == 1) return games;
+        Console.WriteLine();
+        Console.WriteLine("Found " + games.Count + " installations:");
+        Console.WriteLine();
+        for (int i = 0; i < games.Count; i++)
+            Console.WriteLine("{0,3}. {1}", i + 1, Path.GetFileName(games[i]));
+        Console.WriteLine();
+        Console.WriteLine("Type the numbers to start, separated by commas (ranges like 1-5 work),");
+        Console.WriteLine("or ALL to start every install.");
+        while (true)
         {
-            File.WriteAllBytes(f, new byte[0]);
-            Say("Created " + f);
-        }
-        catch (Exception e)
-        {
-            Say("Could not create it (" + e.Message + "). Create an empty file called IgnorePatcher.enable in " + gameDir + " yourself.");
+            Console.Write("Selection: ");
+            string sel = Console.ReadLine();
+            if (sel == null) return null;
+            sel = sel.Trim();
+            if (sel.Length == 0) continue;
+            List<string> picked = new List<string>();
+            if (sel.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+            {
+                picked.AddRange(games);
+                return picked;
+            }
+            bool ok = true;
+            foreach (string part in sel.Split(','))
+            {
+                string p = part.Trim();
+                int lo = 0, hi = 0;
+                bool good;
+                int dash = p.IndexOf('-');
+                if (dash > 0)
+                    good = int.TryParse(p.Substring(0, dash).Trim(), out lo) && int.TryParse(p.Substring(dash + 1).Trim(), out hi);
+                else
+                {
+                    good = int.TryParse(p, out lo);
+                    hi = lo;
+                }
+                if (!good || lo < 1 || hi > games.Count || lo > hi)
+                {
+                    Say("Not understood: '" + p + "'. Use numbers from 1 to " + games.Count + ", or ALL.");
+                    ok = false;
+                    break;
+                }
+                for (int n = lo; n <= hi; n++)
+                    if (!picked.Contains(games[n - 1])) picked.Add(games[n - 1]);
+            }
+            if (ok && picked.Count > 0) return picked;
         }
     }
 
-    static void StartGame(string gameDir, string exeName)
+    // The game skips the patcher only when an empty file IgnorePatcher.enable sits in its folder. Without it the
+    // game hands over to the patcher about a second after it starts, and the option below is lost. Creating the
+    // empty file is the game's own switch, but it is a change in the game folder, so ask first (once for all).
+    static void CheckIgnorePatcher(List<string> games)
     {
+        List<string> missing = new List<string>();
+        foreach (string g in games)
+            if (!File.Exists(Path.Combine(g, "IgnorePatcher.enable"))) missing.Add(g);
+        if (missing.Count == 0) return;
+        if (missing.Count == 1)
+            Say("The game folder " + Path.GetFileName(missing[0]) + " has no file named IgnorePatcher.enable.");
+        else
+            Say(missing.Count + " of the selected installs have no file named IgnorePatcher.enable (for example " + Path.GetFileName(missing[0]) + ").");
+        Say("Without it the game opens the patcher a second after it starts, and this fix is lost.");
+        Say("The file is empty and is the game's own switch for skipping the patcher. You can delete it any time.");
+        Console.Write(missing.Count == 1 ? "Create it now? (Y/N): " : "Create it in all " + missing.Count + "? (Y/N): ");
+        string a = Console.ReadLine();
+        if (a == null || !a.Trim().ToLowerInvariant().StartsWith("y"))
+        {
+            Say("Not created. Starting anyway; if the patcher opens, create an empty file called IgnorePatcher.enable in the game folder.");
+            return;
+        }
+        foreach (string g in missing)
+        {
+            string f = Path.Combine(g, "IgnorePatcher.enable");
+            try
+            {
+                File.WriteAllBytes(f, new byte[0]);
+                Say("Created " + f);
+            }
+            catch (Exception e)
+            {
+                Say("Could not create " + f + " (" + e.Message + "). Create an empty file with that name yourself.");
+            }
+        }
+    }
+
+    // Start every chosen install, 3 seconds apart so they don't all load at once.
+    static void StartGames(List<string> games, bool dx10)
+    {
+        for (int i = 0; i < games.Count; i++)
+        {
+            StartGame(games[i], PickExe(games[i], dx10), games.Count > 1);
+            if (i < games.Count - 1) Thread.Sleep(3000);
+        }
+        Say("Started without the patcher: run the normal patcher when the game has an update.");
+    }
+
+    static void StartGame(string gameDir, string exeName, bool showFolder)
+    {
+        string label = showFolder ? Path.GetFileName(gameDir) + " (" + exeName + ")" : exeName;
         string rule = "\"MAP " + CdnHost + " 127.0.0.1:" + Port + "\"";
         ProcessStartInfo si = new ProcessStartInfo();
         si.FileName = Path.Combine(gameDir, exeName);
@@ -176,11 +304,11 @@ static class AoCRewardsFix
         try
         {
             Process.Start(si);
-            Say("Started " + exeName + " (without the patcher: run the normal patcher when the game has an update).");
+            Say("Started " + label);
         }
         catch (Exception e)
         {
-            Say("Could not start " + exeName + ": " + e.Message);
+            Say("Could not start " + label + ": " + e.Message);
         }
     }
 

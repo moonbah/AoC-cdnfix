@@ -27,7 +27,7 @@ Both hand the game the same missing script from your own PC. Neither changes gam
 Built by Achreen / moonbah with Claude, **on top of Nitrogen's investigation**: Nitrogen found the cause and made
 the first working fix (Option 2 below). This version only changes *how* the script reaches the game.
 Thanks to **Strelzia** for the idea of making it work for multiboxers (many clients, no restarts), which is what
-led to this version.
+led to this version. The multi-install picker (below) is based on a modification by Strelzia.
 
 The game's browser (Awesomium 1.6) accepts the old Chromium option `--host-resolver-rules` on the game's command
 line. `AoC Rewards Fix.exe` runs a tiny web server on your PC only (`127.0.0.1:8777`) and starts the game with
@@ -53,6 +53,12 @@ full path of the exe in quotes, followed by `%command%`, for example
 path to the tool, which finds the game folder from it. (Works for moonbah on one PC; the black window opens when you
 press Play.)
 
+**Several installs (multibox):** put the folder that holds all your installs (for example `D:\AoC` with `AOC1`,
+`AOC2`, ... inside) into `game_path.txt` next to the exe. The program lists the installs. Type the numbers
+(`1,3,5` or a range like `1-5`) or `ALL`, and it starts them 3 seconds apart, all served by the same window. The
+`IgnorePatcher.enable` question is asked once for all selected installs. A folder that has `AgeOfConan.exe` itself
+is treated as one install, as before.
+
 ### Please read
 
 - The game is started **without the patcher**. When the game has an update, run the normal patcher once.
@@ -67,7 +73,7 @@ press Play.)
 - Source: [`rewards-fix/AoCRewardsFix.cs`](rewards-fix/AoCRewardsFix.cs), one file. The exe is built from it with
   the C# compiler that ships with Windows (the command is at the top of the file). It needs .NET Framework 4,
   which Windows 10 and 11 already have.
-- SHA-256 of the released exe: `6B956A566895599ED5D41AE27BCBF5D752D8AE725C44AC3799264F90B362078A`
+- SHA-256 of the released exe: `756D8218B68C3FBF8EBCE8D1E63ACCEAF3A7E8C2A3A9F7689416D23693358CE7`
 
 ## Option 2: AoC cdnfix by Nitrogen (the original fix)
 
