@@ -312,6 +312,27 @@ static class AoCRewardsFix
             Process.Start(si);
             Say("Started " + label);
         }
+        catch (System.ComponentModel.Win32Exception e)
+        {
+            if (e.NativeErrorCode == 740)
+            {
+                // Windows is set to "Run as administrator" for this exe (compatibility setting): ask through the normal admin prompt
+                Say(label + " is set to run as administrator on this PC. Windows will ask for permission now.");
+                try
+                {
+                    si.UseShellExecute = true;
+                    si.Verb = "runas";
+                    Process.Start(si);
+                    Say("Started " + label + " as administrator");
+                }
+                catch (Exception e2)
+                {
+                    Say("Could not start " + label + " as administrator: " + e2.Message);
+                    Say("Run this program as administrator (right-click it, Run as administrator) and try again.");
+                }
+            }
+            else Say("Could not start " + label + ": " + e.Message);
+        }
         catch (Exception e)
         {
             Say("Could not start " + label + ": " + e.Message);

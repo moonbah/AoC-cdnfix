@@ -63,6 +63,9 @@ is treated as one install, as before.
 
 ### Please read
 
+- **Run as administrator:** some PCs have "Run this program as an administrator" set for the game exe (right-click the
+  exe > Properties > Compatibility). Windows then refuses a normal start ("requires elevation"). The exe notices that
+  and starts the game through the normal Windows permission prompt: click Yes. (Found on a DX10 install.)
 - The game is started **without the patcher**. When the game has an update, run the normal patcher once.
 - **`IgnorePatcher.enable`:** the game only stays open when an empty file named `IgnorePatcher.enable` is in the
   game folder. Without it the game opens the patcher about a second after it starts, and the fix is lost (the
@@ -75,7 +78,7 @@ is treated as one install, as before.
 - Source: [`rewards-fix/AoCRewardsFix.cs`](rewards-fix/AoCRewardsFix.cs), one file. The exe is built from it with
   the C# compiler that ships with Windows (the command is at the top of the file). It needs .NET Framework 4,
   which Windows 10 and 11 already have.
-- SHA-256 of the released exe: `253AC21CE356AD329735E71C717B5D3FED5C9A69A588ECC70E879B15A7E44452`
+- SHA-256 of the released exe: `643B62318337A778B9F9B67DABAFF6AB15BBFD68BF50C71F5D4A8D579599DDDC`
 
 ## Option 2: AoC cdnfix by Nitrogen (the original fix)
 
